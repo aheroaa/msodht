@@ -22,28 +22,17 @@ syncef.syncFile(function(curLines) {
 	//得到下载地址
 	veryday.url=utility.getHashFileURL(veryday.d);
 	veryday.file=utility.getHashFilePath(veryday.d);
-	setInterval(function(){
-		torragefile.saveTofile(curLines);	
-	}, 60000);
 
 	//下载到文件
 	down.getFile(veryday.url,veryday.file,function(isok){
 		if(!isok)return;
 		console.log("读取文件：" + path.basename(veryday.file));
-		// lineReader.eachLine(veryday.file,function(o,e,fp){
-		// 	curLines[veryday.dindex].c=fp;
-		// 	console.log(fp);
-		// 	setTimeout(function(){return;}, 5000);
-		// },{filePosition:veryday.c})
-
-		lineReader.open(veryday.file,function(reader,fp){
-			while(reader.hasNextLine()){
-				reader.nextLine(function(line,fp1){
-					console.log("fp:"+fp +",fp1:"+fp1);
-				});
-			}
-
-		},{filePosition:veryday.c});
+		lineReader.eachLine(veryday.file,function(l,e,fp){
+			curLines[veryday.dindex].c=fp;			
+			down.downTorrFile(l);
+			console.log("hashKey:",l);
+			return false;
+		},{filePosition:veryday.c})
 
 	})
 });

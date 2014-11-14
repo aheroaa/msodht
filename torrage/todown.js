@@ -6,7 +6,10 @@ var http=require("http"),
 	util=require("util"),
 	urlparse=require("url").parse,
 	path=require("path"),
-	fs=require("fs");
+	fs=require("fs"),
+	utility=require("utility"),
+	uri=require("url"),
+	async=require("async");
 var _isok=false;
 function getHtml(url,callback){
 	console.log("从" + url + "下载数据。");
@@ -55,5 +58,77 @@ function getFile(url,sfile,callback){
 	req.end();
 }
 
+
+function downTorrAsByte(url,cb){
+	var resultByte=[],resultStr="", body=[],msg="";
+	var option=uri.parse(url);
+	option.headers={"host":option.hostname,"content-type":"application/x-bittorrent"};
+	http.get(option, function(resp){
+		if(resp.statusCode==404){
+			msg="没有找到！";
+		}
+
+		resp.on("data",function(chunk){
+			body.push(chunk);
+		})
+		resp.on("end",function(){
+			if(body.length==0){
+				msg="没有找到！";
+			}
+			resultByte=body;
+			body=Buffer.concat(body);
+			resultStr=body.toString();
+			if(resultStr==""){
+				msg="数据有误！";
+			}
+			msg="下载成功";
+			cb(body,resultStr,msg);
+		})
+	});
+}
+
+
+function downTorrFile(hashKey){
+	var torrFileList=utility.getDownTorrUrls(hashKey);
+	if(torrFileList==null) return null;
+	var count    =torrFileList.length;
+	var n        =utility.random(1,count);
+	var acc      =0;
+	var dok      =false;
+	var torr_str ="";
+	var torr_byte=[];
+	var downtip  ="";
+	async.whilst(
+		function(){return !dok && acc<count},
+		function(cb){
+			url=torrFileList[(n+acc++)%count];
+			downTorrAsByte(url,function(bytes,result,msg){
+				torr_str=result;
+				torr_byte=bytes;
+				downtip=msg;
+				dok=result!="";
+				console.log("%s：%s",url,downtip);
+			})
+		},
+		function(err){}
+		)
+	if(dok){
+		if(torr_str.indexOf("d8:")!===0){
+			console.log("%s，种子内容不对！",hashKey);
+			return;
+		}
+
+	}else{
+		console.log("%s,下载失败",hashKey);
+	}
+}
+
+
+function analyzeTorrfile(hKey){
+
+
+}
+
 exports.getHtml=getHtml;
 exports.getFile=getFile;
+exports.downTorrFile=downTorrFile;

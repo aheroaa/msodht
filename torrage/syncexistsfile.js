@@ -11,17 +11,18 @@ module.exports.syncFile = function(callback) {
 
     var torrconfig=torragefile.getConfig();
     if(torrconfig.today==moment().format("YYYY-MM-DD") && torrconfig.synced==1){
-        callback(curLines);
+        callback(null,curLines);
+        return;
     }
 
     down.getHtml('http://torrage.com/sync/', function(data) {
         if (data == null) {
-            console.log("down error!");
+            callback("down error!");
             return;
         }
         env(data, function(error, window) {
             if (error) {
-                console.log(error);
+                callback("analize html error:" + error);
                 return;
             }
             var $ = jquery(window);
@@ -38,7 +39,7 @@ module.exports.syncFile = function(callback) {
                     return a > b ? 1 : -1;
                 });
             })
-            console.log("当前获取到的文件数：" + txts.length);
+            console.log("\r\n当前获取到的文件数：" + txts.length);
             for (var i = curLines.length; i < txts.length; i++) {
                 curLines.push({
                     'd': txts[i],
@@ -55,7 +56,7 @@ module.exports.syncFile = function(callback) {
             torragefile.saveConfig(torrconfig);
 
 
-            callback(curLines);
+            callback(null,curLines);
         })
     })
 }

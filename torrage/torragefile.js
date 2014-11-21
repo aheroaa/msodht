@@ -34,9 +34,12 @@ module.exports.curLines=function(){
 }()
 
 
+//TODO
 module.exports.saveTofile=function(data){
-	fs.writeFileSync(existsPath,JSON.stringify(data));
+	//fs.writeFileSync(existsPath,JSON.stringify(data));
 }
+
+
 
 
 module.exports.getConfig=function(){

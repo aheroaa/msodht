@@ -5,18 +5,19 @@ var syncef      = require("./syncexistsfile"),
 	path        = require("path"),
 	down        = require("./todown"),
 	torragefile = require("./torragefile"),
-	async		= require("async");
+	async		= require("async"),
+	mongoose	= require("mongoose"),
+	Torr 		= require("./models/Torr");
 
 var CurrentFile = {};	//记录当前读取的文件及文件的位置 { d: '20141020',  c: 3312,  dindex: 667,  url: 'http://torrage.com/sync/20141020.txt',  file: 'E:\\git\\msodht/torrage/files/20141020.txt' }
 var CurrentLines={};	//记录当前所有的hash文本以便即时更新
-var Capcity=500;		//多少条记录之后保存一次hash文本
+var Capcity=200;		//多少条记录之后保存一次hash文本
 var TorrentTimeOut=5000;//处理一个Hash文件最长耗时
-
 
 process.on("uncaughtException",function(e){
 	console.log(e.stack);
 })
-
+mongoose.connect("mongodb://localhost/dht");
 
 /**
  * 得到一个Hash txt文件
@@ -60,56 +61,73 @@ function downHashTxt(r,cb){
 	})
 }
 
+/**
+ * 获得一批hash文件来下载
+ * @param  {String}   文件路径
+ * @param  {Function} cb
+ */
+function getHashesBatch(fpath,cb){
+	var temp=0;
+	var hashesToDwon=[];
+	lineReader.eachLine(fpath,function(line,last,fp){
+		if(last){
+			cb(null,{o:hashesToDwon,fp:fp,last:true});
+		}
+		hashesToDwon.push(line);
+		if(temp++==Capcity){
+			cb(null,{o:hashesToDwon,fp:fp});
+			return false;
+		}
+	},{filePosition:CurrentFile.c})
+}
 
-var logLines=0;
-function readOneHashTxt(fpath,cb){
+
+
+
+function readOneHashTxt(fpath,callback){
 	console.log("读取文件：" + path.basename(fpath));
 	async.waterfall([
-			function(cb){lineReader.open(fpath,cb,{filePosition:CurrentFile.c})},
-			function(reader,cb){
-				async.whilst(
-						function(){return reader.hasNextLine()},
-						function(cb){
-							reader.nextLine(function(line,position){
-								if(++logLines==Capcity) {
-									CurrentLines[CurrentFile.dindex].c=CurrentFile.c=position;
-									logLines=0;
-									torragefile.saveTofile(CurrentLines);
-								}
-								dealOneHash(line,cb);								
-							});
-							setTimeout(cb,TorrentTimeOut);
-						},
-						function(err,result){
-							utility.log("async whilst err:"+ err);
-							utility.log("async whilst result:"+ result);
-							reader.close();
-						}
-					)
-			}
-		],
-		function(err,results){
-			if(err){
-				utility.log("err:" + err);
-			}			
-			//utility.log("results:"+results);
+		function(cb){getHashesBatch(fpath,cb);},
+		function(obj,cb){
+			if(obj.last) cb("文件：%s 读取完成！",fpath);			
+			var curHashes=obj.o;	
+			//同步遍历得到的hash列表		
+			async.eachSeries(curHashes,function(item,cb){
+				dealOneHash(item,cb);	
+			},function(err){
+				//每读取一次都存档
+				CurrentLines[CurrentFile.dindex].c=CurrentFile.c=obj.fp;
+				torragefile.saveTofile(CurrentLines);
+			});
 		}
-	);
+	],
+	function(err,results){
+		if(err){callback("err:" + err);}			
+	});
+	
 }
 
 function dealOneHash(hkey,cb){
 	async.waterfall([
 			function(cb){down.downTorrFile(hkey,cb);},
-			function(torrFile,cb){down.analyzeTorrfile(torrFile,cb);}
+			function(tfile,cb){torrToDB(tfile,cb);}
 		],function(err,result){
-			if(err){
-				utility.log(err);
-			}
+			if(err){utility.log(err);}
+			cb(null);
 		});
+}
 
-	// down.downTorrFile(l);
-	// console.log("hashKey:",l);
-	// return false;
+function torrToDB(tfile,cb){
+	utility.log("将文件存到数据库！");
+	var torrModel=new Torr(tfile);
+
+	torrModel.save(function(err){
+		if(err){
+			cb(err);
+		}else{
+			cb(null);
+		}
+	});
 }
 
 

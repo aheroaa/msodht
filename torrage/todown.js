@@ -11,8 +11,6 @@ var http=require("http"),
 	uri=require("url"),
 	async=require("async"),
 	zlib=require("zlib"),
-	TorrentFile=require("./TorrentFile.js").TorrentFile,
-	TorrentFileInfo=require("./TorrentFile.js").TorrentFileInfo,
 	TFile=require("./TFile.js");
 
 var request;
@@ -38,7 +36,7 @@ function getFile(r,callback){
 	var url=r.url;
 	var sfile=r.file;
 	if(fs.existsSync(sfile)){
-		callback(true);
+		callback();
 		return;
 	}
 
@@ -58,7 +56,7 @@ function getFile(r,callback){
 	var req=http.request(options, function(res){
 		var writeStream=fs.createWriteStream(sfile);
 		writeStream.on("close",function(){
-			callback(true);
+			callback();
 		});
 		res.pipe(writeStream);
 	});
@@ -67,106 +65,80 @@ function getFile(r,callback){
 }
 
 
-function analizeDownTorrStr(str,body,urlList,randn,acc,cb){
-	if(str.substr(0,10).indexOf("d8:")>=0){
-		utility.log("下载成功！");
-		cb(null,{bytes:body,str:str});	
-		return;
-	}
-
-	if(request.end){
-		request.end();
-	}
-
-	if(acc>=urlList.length){		
-		cb("\t\t经过尝试，下载失败！")
-		return;
-	}		
-	downTorrAsByte(urlList,randn,++acc,cb);
-
-}
-
-
-function downTorrAsByte(urlList,randn,acc,cb){	
-	var resultByte=[],resultStr="", body=[],msg="";
-	var count    =urlList.length;
-	var index=(randn+acc)%count;
-	var url=urlList[index];
-	if(!url){
-		cb("url无效！count:" + count + ",randn:" + randn + ",acc:" + acc);
-	}
-	utility.log(url);
-	var option=uri.parse(url);	
-	option.headers={
-		"Referer": option.protocol + "//" +option.hostname,
-		"Content-Type":"application/x-bittorrent;charset=utf-8",
-		"Accept":"text/html, application/xhtml+xml, */*",
-		"Accept-Encoding":"gzip,deflate,sdch",
-		"Accept-Language":"zh-CN,zh;q=0.8",
-		"User-Agent":"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)"
-	};
-
-	// var requestTimer=setTimeout(function(){
-	// 	request.end();
-	// 	request.abort();
-	// 	utility.log("\t\t请求超时！");
-	// 	if(acc>=count){
-	// 		cb("\t\t经过尝试，下载失败！");
-	// 		return;
-	// 	}
-	// 	downTorrAsByte(urlList,randn,++acc,cb);
-	// },5000)
-
-	request=http.request(option, function(resp){
-		if(!resp.statusCode){
-			utility.log(resp);
-			if(acc>=count){
-				cb("\t\t经过尝试，下载失败！");
+function downTorrAsByte(urlList,cb){	
+	async.eachSeries(urlList,function(url,callback){
+		utility.log(url);
+		var option=uri.parse(url); 
+		option.headers={
+			"Referer": option.protocol + "//" +option.hostname,
+			"Content-Type":"application/x-bittorrent;charset=utf-8",
+			"Accept":"text/html, application/xhtml+xml, */*",
+			"Accept-Encoding":"gzip,deflate,sdch",
+			"Accept-Language":"zh-CN,zh;q=0.8",
+			"User-Agent":"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)"
+		};
+		http.get(option, function(resp){
+			var body=[];
+			if(!resp.statusCode){
+				utility.log(resp);
+				callback(null);
+				return;
 			}
-			downTorrAsByte(urlList,randn,++acc,cb);
+			if(resp.statusCode!=200){
+				utility.log("链接无效");
+				callback(null);
+				return;
+			}
+			resp.on("data",function(chunk){
+				process.stdout.write(".");
+				body.push(chunk);
+			})
+			resp.on("end",function(){
+				console.log("");
+				body=Buffer.concat(body);
+				if(resp.headers['content-encoding']  && resp.headers['content-encoding'].indexOf('gzip') != -1) {
+					//解压gzip
+				  	zlib.unzip(body,function(err,buffer){			  		
+				  		if(err){
+				  			callback(err);
+				  		}else{
+				  			if(buffer.length<=0){
+				  				utility.log("未能下载到数据!");
+				  				callback(null);
+				  				return ;
+				  			}
+				  			if(buffer.toString().substr(0,10).indexOf("d8:")<0){
+				  				utility.log("下载失败，不是一个正确的种子文件！");
+				  				callback(null);
+				  				return;
+				  			}
+				  			callback({bytes:buffer});
+				  		}	  		
+				  	})
+				}else{
+					if(body.length<=0){
+		  				utility.log("未能下载到数据!");
+		  				callback(null);
+		  				return ;
+		  			}
+		  			if(body.toString().substr(0,10).indexOf("d8:")<0){
+		  				utility.log("下载失败，不是一个正确的种子文件！");
+		  				callback(null);
+		  				return;
+		  			}
+		  			callback({bytes:body});
+				}
+			})
+		});
+	},function(err){
+		if(err && err.bytes){
+			utility.log("下载成功！");
+			cb(null,err);
+		}else{
+			cb(err ? err : "经过尝试，下载失败！");
 		}
-		//clearTimeout(requestTimer);
-		if(resp.statusCode!=200){
-			utility.log("\t\t链接无效");
-			if(acc>=count){
-				cb("\t\t经过尝试，下载失败！");
-			}
-			downTorrAsByte(urlList,randn,++acc,cb);
-		}
 
-		// var responseTimer=setTimeout(function(){
-		// 	resp.destroy();
-		// 	utility.log("\t\t响应超时");
-		// 	request.end();
-		// 	if(acc>=count){
-		// 		cb("\t\t经过尝试，下载失败！");
-		// 		return;
-		// 	}
-		// 	downTorrAsByte(urlList,randn,++acc,cb);
-		// },60000);
-
-		resp.on("data",function(chunk){
-			process.stdout.write("#");
-			body.push(chunk);
-		})
-		resp.on("end",function(){
-			//clearTimeout(responseTimer);
-			body=Buffer.concat(body);
-			if(resp.headers['content-encoding'].indexOf('gzip') != -1) {
-				//解压gzip
-			  	zlib.unzip(body,function(err,buffer){			  		
-			  		if(err){
-			  			cb(err);
-			  		}else{
-			  			analizeDownTorrStr(buffer.toString(),buffer,urlList,randn,acc,cb);			  			
-			  		}	  		
-			  	})
-			}else{
-				analizeDownTorrStr(body.toString(),body,urlList,randn,acc,cb);
-			}
-		})
 	});
-	request.end();
 }
 
 
@@ -178,17 +150,16 @@ function downTorrFile(hashKey,callback){
 	var torr_str ="";
 	var torr_byte=[];
 	console.log('\n\n');
-	utility.log("hashKey :: " + hashKey);
-
-
+	utility.log("hashKey :: " + hashKey);	
+	var templist=torrFileList.slice(n-1,torrFileList.length).concat(torrFileList.slice(0,n-1));
 	async.waterfall([
 			function(cb){
-				downTorrAsByte(torrFileList,n,0,cb);
+				downTorrAsByte(templist,cb);
 			},
 			function(result,cb){
 				var torrFile=TFile.getTorrentFile(hashKey,result.bytes);
 				if(!torrFile) {
-					callback("种子解析失败！",null);
+					cb("种子解析失败！",null);
 				}else{
 					utility.log("种子解析成功！");
 					callback(null,torrFile);	

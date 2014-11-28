@@ -11,7 +11,7 @@ var TorrSchema=new Schema({
 	encoding:String,
 	createAt:{type:Date,default:Date.now},
 	updateAt:{type:Date,default:Date.now},
-	recvTimes:{type:Number,default:0},
+	recvTimes:{type:Number,default:1},
 	hits:{type:Number,default:0},
 	info:{
 		files:[{path:String,path_utf_8:String,length:Number}],
@@ -37,7 +37,7 @@ TorrSchema.pre("save",function(next){
 	if(this.isNew){
 		this.createAt=this.updateAt=Date.now;
 	}else{
-		this.updateAt=Date.now;
+		this.updateAt=Date.now;		
 	}
 
 	next();
@@ -54,6 +54,18 @@ TorrSchema.statics={
 		return this
 			.findOne({_id:id})
 			.exec(cb)
+	},
+	findUpdateOrInsert:function(doc,cb){
+		this.findOneAndUpdate({_id:doc._id},{$inc:{recvTimes:1}},function(err,obj){
+			if(err){
+				cb(err);
+				return;
+			}
+			if(!obj){
+				doc.save();
+			}
+			cb(null);
+		})
 	}
 }
 

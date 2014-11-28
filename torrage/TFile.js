@@ -133,14 +133,8 @@
 		var result=bencode.decode(bytes,"utf-8");
 		var obj=getLegalResult(result) ;
 		obj._id=hkey;
-
-		//var fs=require("fs");
-		//fs.writeFileSync("c:/result.txt",JSON.stringify(obj));
-
 		return obj;
 	}
-
-
 	module.exports.getTorrentFile=getTorrentFile;
 
 }())

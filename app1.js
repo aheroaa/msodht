@@ -16,8 +16,7 @@ function fire(obj, callback, timeout) {
     timeout = timeout || 200;
     setTimeout(function() {
         callback(null, obj);
-    }, timeout); 
-    
+    }, timeout);
 };
 
 function err(errMsg, callback, timeout) {

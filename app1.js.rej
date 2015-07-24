@@ -1,9 +1,0 @@
-diff a/app1.js b/app1.js	(rejected hunks)
-@@ -16,6 +16,7 @@
-     timeout = timeout || 200;
-     setTimeout(function() {
-         callback(null, obj);
-+    }, timeout); 
-     
- };
- 

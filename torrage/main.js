@@ -1,13 +1,14 @@
 var syncef      = require("./syncexistsfile"),
 	moment      = require("moment"),
-	lineReader  = require('line-reader'),
-	utility     = require("utility"),
-	path        = require("path"),
-	down        = require("./todown"),
-	torragefile = require("./torragefile"),
 	async		= require("async"),
-	mongoose	= require("mongoose"),
-	Torr 		= require("./models/Torr");
+	lineReader  = require('line-reader'),
+	path        = require("path"),
+	down        = require("./todown");
+	torragefile = require("./torragefile"),	
+	Torr 		= require("./models/Torr"),
+	util     	= require("./util"),
+	mongoose	= require("mongoose");
+
 
 var CurrentFile = {};	//记录当前读取的文件及文件的位置 { d: '20141020',  c: 3312,  dindex: 667,  url: 'http://torrage.com/sync/20141020.txt',  file: 'E:\\git\\msodht/torrage/files/20141020.txt' }
 var CurrentLines={};	//记录当前所有的hash文本以便即时更新
@@ -18,7 +19,14 @@ var daysBefore=30;		//取出多少天前的数据
 process.on("uncaughtException",function(e){
 	console.log(e.stack);
 })
-mongoose.connect("mongodb://localhost/dht");
+
+	
+try{
+	mongoose.connect("mongodb://180.163.187.2/dht");
+}catch(e){
+	console.log(e);
+}
+
 
 /**
  * 得到一个Hash txt文件
@@ -42,8 +50,8 @@ function PopOneHashTxt(curLines,cb) {
 		}
 	}
 	//得到下载地址
-	veryday.url=utility.getHashFileURL(veryday.d);
-	veryday.file=utility.getHashFilePath(veryday.d);
+	veryday.url=util.getHashFileURL(veryday.d);
+	veryday.file=util.getHashFilePath(veryday.d);
 
 	//下载到文件
 	down.getFile(veryday,function(){
@@ -57,6 +65,8 @@ function PopOneHashTxt(curLines,cb) {
 
 /**
  * 获得一批hash文件来下载
+ *
+ * @method getHashesBatch
  * @param  {String}   文件路径
  * @param  {Function} cb
  */
@@ -83,7 +93,7 @@ function readOneHashTxt(fpath,callback){
 		function(cb){getHashesBatch(fpath,cb);},
 		function(obj,cb){
 			if(obj.last) {
-				utility.log("文件："+fpath +" 读取完成！");
+				util.log("文件："+fpath +" 读取完成！");
 				PopOneHashTxt(CurrentLines,cb);
 				return;
 			}			
@@ -95,7 +105,7 @@ function readOneHashTxt(fpath,callback){
 				//每读取一次都存档
 				CurrentLines[CurrentFile.dindex].c=CurrentFile.c=obj.fp;
 				torragefile.saveTofile(CurrentLines);
-				utility.log("处理了一批了");
+				util.log("处理了一批了");
 				readOneHashTxt(fpath,callback);
 			});
 		}
@@ -121,13 +131,13 @@ function dealOneHash(hkey,cb){
 		function(tfile,callback){torrToDB(tfile,callback);}
 		],
 		function(err){
-			if(err){utility.log(err);};
+			if(err){util.log(err);};
 			cb(null);
 		});	
 }
 
 function torrToDB(tfile,cb){
-	utility.log("将文件存到数据库！");
+	util.log("将文件存到数据库！");
 	var torrModel=new Torr(tfile);
 	torrModel.save(function(err){
 		cb(err);
@@ -136,11 +146,15 @@ function torrToDB(tfile,cb){
 
 
 async.waterfall([
-		function(cb){syncef.syncFile(cb)},
-		function(curLines,cb){PopOneHashTxt(curLines,cb)}
-	],function(err,result){
-		utility.log(err);
-		utility.log(result);
-	});
+	function(cb){
+		syncef.syncFile(cb)
+	},
+	function(curLines,cb){
+		PopOneHashTxt(curLines,cb)
+	}
+],function(err,result){
+	util.log(err);
+	util.log(result);
+});
 
 

@@ -1,12 +1,13 @@
-var down = require("./todown"),
-    env = require("jsdom").env,
+
+var env = require("jsdom").env,
     jquery = require("jquery"),
     moment = require("moment"),
+    down = require("./todown"),
     torragefile = require("./torragefile");
 
 module.exports.syncFile = function(callback) {
-    var curLines = torragefile.curLines;
     torragefile.initFile();
+    var curLines = torragefile.curLines;    
     console.log("已有的文件：" + torragefile.curLines.length);
 
     var torrconfig=torragefile.getConfig();
@@ -15,7 +16,7 @@ module.exports.syncFile = function(callback) {
         return;
     }
 
-    down.getHtml('http://torrage.com/sync/', function(data) {
+    down.getHtml('https://torrage.com/sync/', function(data) {
         if (data == null) {
             callback("down error!");
             return;
@@ -27,7 +28,7 @@ module.exports.syncFile = function(callback) {
             }
             var $ = jquery(window);
             var $trs = $("#dirlist table tbody tr");
-
+            console.log($trs.length);
             var txts = [];
             $trs.each(function(k, o) {
                 var $tr = $(o),
@@ -58,7 +59,7 @@ module.exports.syncFile = function(callback) {
 
             callback(null,curLines);
         })
-    })
+    },true)
 }
 
 module.exports.delExcept=function(d){
@@ -67,4 +68,4 @@ module.exports.delExcept=function(d){
 
 module.exports.curLines=function(){
 	return torragefile.curLines;
-}()
+}();
